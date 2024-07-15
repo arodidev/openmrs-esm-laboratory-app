@@ -32,7 +32,7 @@ import {
 } from "@openmrs/esm-framework";
 import styles from "./orders-data-table.scss";
 import { getStatusColor } from "../../utils";
-import { FulfillerStatus } from "../../types";
+import { FulfillerStatus, Result } from "../../types";
 import { useLabOrders } from "../../laboratory-resource";
 import dayjs from "dayjs";
 import { isoDateTimeString } from "../../constants";
@@ -44,6 +44,38 @@ interface OrdersDataTableProps {
   fulfillerStatus?: FulfillerStatus;
   excludeCanceledAndDiscontinuedOrders?: boolean;
   useActivatedOnOrAfterDateFilter?: boolean;
+}
+
+function useSearchResults(tableEntries, searchString): Result[] {
+  const flattenedData = tableEntries.map((eachObject) => {
+    return {
+      ...eachObject,
+      date: formatDate(parseDate(eachObject.dateActivated)),
+      patient: eachObject.patient.display.split("-")[1],
+      procedure: eachObject.concept.display,
+      status: eachObject.fulfillerStatus ?? "--",
+      orderer: eachObject.orderer.display,
+    };
+  });
+
+  const searchResults = useMemo(() => {
+    if (searchString && searchString.trim() !== "") {
+      const search = searchString.toLowerCase();
+      return flattenedData.filter((eachDataRow) =>
+        Object.entries(eachDataRow).some(([header, value]) => {
+          if (header === "patientUuid") {
+            //remove this if not useful
+            return false;
+          }
+          return `${value}`.toLowerCase().includes(search);
+        })
+      );
+    }
+
+    return tableEntries;
+  }, [searchString, tableEntries]); //memoize this
+
+  return searchResults;
 }
 
 const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
@@ -59,6 +91,8 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
     targetPatientDashboard: { redirectToResultsViewer, redirectToOrders },
   } = useConfig();
   const [filter, setFilter] = useState<FulfillerStatus>(null);
+  const [searchString, setSearchstring] = useState<string>("");
+
   const [activatedOnOrAfterDate, setActivatedOnOrAfterDate] = useState<string>(
     dayjs().startOf("day").format(isoDateTimeString)
   );
@@ -67,6 +101,9 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
     excludeCanceledAndDiscontinuedOrders,
     activatedOnOrAfterDate
   );
+
+  const searchResults = useSearchResults(labOrders, searchString);
+
   const orderStatuses = [
     {
       value: null,
@@ -124,7 +161,7 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
     goTo,
     results: paginatedLabOrders,
     currentPage,
-  } = usePagination(labOrders, currentPageSize);
+  } = usePagination(searchResults, currentPageSize);
 
   const handleOrderStatusChange = ({ selectedItem }) =>
     setFilter(selectedItem.value);
@@ -192,14 +229,7 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
       useZebraStyles
       overflowMenuOnHover={true}
     >
-      {({
-        rows,
-        headers,
-        getHeaderProps,
-        getTableProps,
-        getRowProps,
-        onInputChange,
-      }) => (
+      {({ rows, headers, getHeaderProps, getTableProps, getRowProps }) => (
         <TableContainer className={styles.tableContainer}>
           <TableToolbar>
             <TableToolbarContent>
@@ -255,7 +285,7 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
               <Layer className={styles.toolbarItem}>
                 <TableToolbarSearch
                   expanded
-                  onChange={onInputChange}
+                  onChange={(event) => setSearchstring(event.target.value)}
                   placeholder={t("searchThisList", "Search this list")}
                   size="sm"
                 />
