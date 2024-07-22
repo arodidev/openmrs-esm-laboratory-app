@@ -3,6 +3,8 @@ import { FulfillerStatus } from "./types";
 import { Order } from "@openmrs/esm-patient-common-lib";
 import useSWR from "swr";
 import { useMemo } from "react";
+import dayjs from "dayjs";
+import { isoDateTimeString } from "./constants";
 
 /**
  * Custom hook for retrieving laboratory orders based on the specified status.
@@ -13,7 +15,7 @@ import { useMemo } from "react";
 export function useLabOrders(
   status: "NEW" | FulfillerStatus = null,
   excludeCanceled = true,
-  activatedOnOrAfterDate?: string
+  activatedOnOrAfterDate?: string | Date
 ) {
   const { laboratoryOrderTypeUuid } = useConfig();
   const fulfillerStatus = useMemo(
@@ -21,6 +23,14 @@ export function useLabOrders(
     [status]
   );
   const newOrdersOnly = status === "NEW";
+
+  //stringify activatedOnOrAfterDate
+  if (activatedOnOrAfterDate instanceof Date) {
+    activatedOnOrAfterDate = dayjs(activatedOnOrAfterDate)
+      .startOf("day")
+      .format(isoDateTimeString);
+  }
+
   let url = `${restBaseUrl}/order?orderTypes=${laboratoryOrderTypeUuid}&v=full`;
   url = fulfillerStatus ? url + `&fulfillerStatus=${fulfillerStatus}` : url;
   url = excludeCanceled

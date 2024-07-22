@@ -23,12 +23,15 @@ import {
 import { OverflowMenuVertical } from "@carbon/react/icons";
 import {
   ConfigurableLink,
+  createGlobalStore,
   CustomOverflowMenu,
   ExtensionSlot,
   formatDate,
+  getGlobalStore,
   parseDate,
   useConfig,
   usePagination,
+  useStore,
 } from "@openmrs/esm-framework";
 import styles from "./orders-data-table.scss";
 import { getStatusColor } from "../../utils";
@@ -36,7 +39,10 @@ import { FulfillerStatus } from "../../types";
 import { useLabOrders } from "../../laboratory-resource";
 import dayjs from "dayjs";
 import { isoDateTimeString } from "../../constants";
-
+import {
+  createDateGlobalStore,
+  filterDateType,
+} from "../../lab-tabs/data-table-extensions/date-store";
 interface OrdersDataTableProps {
   useFilter?: boolean;
   actionsSlotName?: string;
@@ -54,14 +60,19 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
   excludeCanceledAndDiscontinuedOrders = true,
   useActivatedOnOrAfterDateFilter = true,
 }) => {
+  // console.log(createDateGlobalStore.getState());
   const { t } = useTranslation();
   const {
     targetPatientDashboard: { redirectToResultsViewer, redirectToOrders },
   } = useConfig();
   const [filter, setFilter] = useState<FulfillerStatus>(null);
-  const [activatedOnOrAfterDate, setActivatedOnOrAfterDate] = useState<string>(
-    dayjs().startOf("day").format(isoDateTimeString)
+  const [activatedOnOrAfterDate, setActivatedOnOrAfterDate] = useState<
+    string | Date
+  >(
+    createDateGlobalStore.getState().date ||
+      dayjs().startOf("day").format(isoDateTimeString)
   );
+
   const { labOrders, isLoading } = useLabOrders(
     useFilter ? filter : fulfillerStatus,
     excludeCanceledAndDiscontinuedOrders,
@@ -129,10 +140,22 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = ({
   const handleOrderStatusChange = ({ selectedItem }) =>
     setFilter(selectedItem.value);
 
-  const handleActivateOnOrAfterDateChange = (date: string) =>
+  const handleActivateOnOrAfterDateChange = (date: string) => {
+    createDateGlobalStore.setState({
+      date: date,
+    });
+
+    const filterDate = createDateGlobalStore.getState().date;
+
+    // console.log(
+    //   "formatted store date ISO format",
+    //   dayjs(filterDate).startOf("day").format(isoDateTimeString)
+    // );
+    // console.log(" date set on change from the global state ", filterDate);
     setActivatedOnOrAfterDate(
       dayjs(date).startOf("day").format(isoDateTimeString)
     );
+  };
 
   const tableRows = useMemo(() => {
     return paginatedLabOrders.map((order, index) => ({
